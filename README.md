@@ -1,12 +1,12 @@
-[![License][License-Image]][License-Url] [![Build][Build-Status-Image]][Build-Status-Url] [![Coverage][Coverage-Image]][Coverage-Url]
+[![License][License-Image]][License-Url] ![Build][Build-Status-Image] [![Coverage][Coverage-Image]][Coverage-Url]
 
 # The Prometheus NATS Exporter
 
 The Prometheus NATS Exporter consists of both a package and an application that
-exports [NATS server](http://nats.io/documentation/server/gnatsd-intro) metrics
-to [Prometheus](https://prometheus.io/) for monitoring.  The exporter aggregates
-metrics from the server monitoring endpoints you choose (varz, connz, subz,
-routez, healthz) from a NATS server into a single Prometheus exporter endpoint.
+exports [NATS server](https://docs.nats.io/nats-concepts/overview) metrics
+to [Prometheus](https://prometheus.io/) for monitoring.  
+The exporter aggregates metrics from the NATS server server [monitoring endpoints](https://docs.nats.io/running-a-nats-service/nats_admin/monitoring#monitoring-endpoints) you choose (varz, connz, subz,
+routez, healthz...) into a single Prometheus exporter endpoint.
 
 # Build
 ``` bash
@@ -16,7 +16,6 @@ make build
 If you want to run tests, you can do this.
 
 ```bash
-make install-tools
 make test
 make lint
 
@@ -59,8 +58,14 @@ prometheus-nats-exporter <flags> url
     	Get detailed connection metrics for each client. Enables flag "-connz" implicitly.
   -healthz
         Get health metrics.
+  -healthz_js_enabled_only
+        Get health metrics with js-enabled-only=true flag.
+  -healthz_js_server_only
+        Get health metrics with js-server-only=true flag.
   -gatewayz
     	Get gateway metrics.
+  -accstatz
+    	Get accstatz metrics.
   -leafz
     	Get leaf metrics.
   -http_pass string
@@ -196,7 +201,6 @@ used to monitor NATS Streaming as well. Refer to the
 
 [License-Url]: https://www.apache.org/licenses/LICENSE-2.0
 [License-Image]: https://img.shields.io/badge/License-Apache2-blue.svg
-[Build-Status-Url]: https://github.com/nats-io/prometheus-nats-exporter/actions/workflows/go.yaml
-[Build-Status-Image]: https://github.com/nats-io/prometheus-nats-exporter/actions/workflows/go.yaml/badge.svg
-[Coverage-Url]: https://codecov.io/gh/nats-io/prometheus-nats-exporter
-[Coverage-image]: https://codecov.io/gh/nats-io/prometheus-nats-exporter/branch/master/graph/badge.svg
+[Build-Status-Image]: https://img.shields.io/github/actions/workflow/status/nats-io/prometheus-nats-exporter/coverage.yaml?branch=main
+[Coverage-Url]: https://coveralls.io/github/nats-io/prometheus-nats-exporter?branch=main
+[Coverage-Image]: https://coveralls.io/repos/github/nats-io/prometheus-nats-exporter/badge.svg?branch=main

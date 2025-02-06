@@ -1,4 +1,4 @@
-// Copyright 2017-2018 The NATS Authors
+// Copyright 2017-2023 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,7 +15,9 @@ package collector
 
 import (
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -207,7 +209,32 @@ func TestVarz(t *testing.T) {
 		"gnatsd_varz_out_msgs":          1,
 		"gnatsd_varz_in_bytes":          5,
 		"gnatsd_varz_out_bytes":         5,
-		"gnatsd_varz_subscriptions":     44,
+		"gnatsd_varz_subscriptions":     57,
+	}
+
+	verifyCollector(CoreSystem, url, "varz", cases, t)
+}
+
+func TestStartAndConfigLoadTimeVarz(t *testing.T) {
+	s := pet.RunServer()
+	defer s.Shutdown()
+
+	varz, err := s.Varz(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/", pet.MonitorPort)
+
+	nc := pet.CreateClientConnSubscribeAndPublish(t)
+	defer nc.Close()
+
+	// see if we get the same stats as the original monitor testing code.
+	// just for our monitoring_port
+
+	cases := map[string]float64{
+		"gnatsd_varz_start":            float64(varz.Start.UnixMilli()),
+		"gnatsd_varz_config_load_time": float64(varz.ConfigLoadTime.UnixMilli()),
 	}
 
 	verifyCollector(CoreSystem, url, "varz", cases, t)
@@ -325,7 +352,7 @@ func TestAllEndpoints(t *testing.T) {
 	verifyCollector(CoreSystem, url, "routez", cases, t)
 
 	cases = map[string]float64{
-		"gnatsd_subsz_num_subscriptions": 44,
+		"gnatsd_subsz_num_subscriptions": 57,
 	}
 	verifyCollector(CoreSystem, url, "subsz", cases, t)
 
@@ -377,7 +404,7 @@ func TestStreamingVarz(t *testing.T) {
 		"gnatsd_varz_out_msgs":          44,
 		"gnatsd_varz_in_bytes":          1594,
 		"gnatsd_varz_out_bytes":         1549,
-		"gnatsd_varz_subscriptions":     57,
+		"gnatsd_varz_subscriptions":     70,
 	}
 
 	verifyCollector(CoreSystem, url, "varz", cases, t)
@@ -489,6 +516,59 @@ func TestStreamingMetricsCustomPrefix(t *testing.T) {
 	}
 
 	verifyStreamingCollector(url, "serverz", cases, t)
+}
+
+func TestLeafzMetricLabels(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	s := pet.RunLeafzStaticServer(&wg)
+	defer s.Close()
+
+	url := fmt.Sprintf("http://localhost:%d", pet.StaticPort)
+
+	outmsgs := "gnatsd_leafz_conn_out_msgs"
+	labelValues, err := getLabelValues(CoreSystem, url, "leafz", []string{outmsgs})
+	if err != nil {
+		t.Fatalf("Unexpected error getting labels for %s metrics: %v", outmsgs, err)
+	}
+	labelMaps, found := labelValues[outmsgs]
+	if !found || len(labelMaps) != 2 {
+		t.Fatalf("No info found for metric %s", outmsgs)
+	}
+	expectedLabelMaps := []map[string]string{
+		{
+			"name":      "leafz_server",
+			"account":   "$G",
+			"ip":        "127.0.0.1",
+			"port":      "6223",
+			"server_id": "id",
+		},
+		{
+			"name":      "",
+			"account":   "$G",
+			"ip":        "127.0.0.2",
+			"port":      "6224",
+			"server_id": "id",
+		},
+	}
+	expectedLabelsNotFound := make(map[string]string, 0)
+	for _, expLabelMap := range expectedLabelMaps {
+		for expLabel, expValue := range expLabelMap {
+			flag := false
+			for _, labelMap := range labelMaps {
+				if value, ok := labelMap[expLabel]; ok && value == expValue {
+					flag = true
+					break
+				}
+			}
+			if !flag {
+				expectedLabelsNotFound[expLabel] = expValue
+			}
+		}
+	}
+	if len(expectedLabelsNotFound) > 0 {
+		t.Fatalf("the following expected labels were missing: %v", expectedLabelsNotFound)
+	}
 }
 
 func TestStreamingServerInfoMetricLabels(t *testing.T) {
@@ -702,4 +782,31 @@ func TestReplicatorMetrics(t *testing.T) {
 
 	url := "http://127.0.0.1:9922"
 	verifyCollector(ReplicatorSystem, url, "varz", cases, t)
+}
+
+func TestMapKeys(t *testing.T) {
+	m := map[string]any{
+		"foo": "bar",
+		"baz": "quux",
+		"nested": map[string]any{
+			"foo": "bar",
+			"baz": "quux",
+			"nested": map[string]any{
+				"foo": "bar",
+				"baz": "quux",
+			},
+		},
+	}
+	expected := map[string]struct{}{
+		"foo":               {},
+		"baz":               {},
+		"nested_foo":        {},
+		"nested_baz":        {},
+		"nested_nested_foo": {},
+		"nested_nested_baz": {},
+	}
+	keys := mapKeys(m, "")
+	if !maps.Equal(keys, expected) {
+		t.Fatalf("expected %v, got %v", expected, keys)
+	}
 }
